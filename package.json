@@ -1,0 +1,18 @@
+{
+  "name": "crash-course",
+  "module": "index.ts",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "private": true,
+  "scripts": {
+    "game:watch": "bun build ./code/game.ts --outfile=./out.js --watch"
+  },
+  "type": "module",
+  "dependencies": {
+    "phaser": "^3.90.0"
+  }
+}
