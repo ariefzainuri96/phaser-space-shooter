@@ -41,7 +41,5 @@ export class Player extends Phaser.GameObjects.Container {
         this.keyboardInputComponent.update()
         this.horizontalMovementComponent.update()
         this.verticalMovementComponent.update()
-
-        console.log(`user input ${this.keyboardInputComponent.isUp}, ${this.keyboardInputComponent.isDown}, ${this.keyboardInputComponent.isLeft}, ${this.keyboardInputComponent.isRight}, ${this.keyboardInputComponent.isShoot}`)
     }
 }

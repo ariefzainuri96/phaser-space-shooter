@@ -80512,8 +80512,11 @@ var import_phaser4 = __toESM(require_phaser(), 1);
 var import_phaser = __toESM(require_phaser(), 1);
 
 // code/constants/number_constant.ts
-var MAX_SPEED = 400;
-var DEFAULT_SPEED = 40;
+var MAX_SPEED = 250;
+var DEFAULT_SPEED = 20;
+var DEFAULT_ENEMY_SPEED = 10;
+var ENEMY_MAX_SPEED = 150;
+var ENEMY_MAX_X_MOVEMENT = 60;
 
 // code/components/horizontal_movement_component.ts
 class HorizontalMovementComponent {
@@ -80607,14 +80610,16 @@ class VerticalMovementComponent {
   inputComponent;
   speed;
   body;
-  constructor(gameObject, inputComponent, speed = DEFAULT_SPEED) {
+  forEnemy;
+  constructor(gameObject, inputComponent, speed = DEFAULT_SPEED, forEnemy = false) {
     this.gameObject = gameObject;
     this.inputComponent = inputComponent;
     this.speed = speed;
+    this.forEnemy = forEnemy;
     this.body = gameObject.body;
     this.body.setDamping(true);
     this.body.setDrag(0.01);
-    this.body.setMaxVelocityY(MAX_SPEED);
+    this.body.setMaxVelocityY(forEnemy ? ENEMY_MAX_SPEED : MAX_SPEED);
   }
   update() {
     if (this.body != null) {
@@ -80663,7 +80668,64 @@ class Player extends Phaser.GameObjects.Container {
     this.keyboardInputComponent.update();
     this.horizontalMovementComponent.update();
     this.verticalMovementComponent.update();
-    console.log(`user input ${this.keyboardInputComponent.isUp}, ${this.keyboardInputComponent.isDown}, ${this.keyboardInputComponent.isLeft}, ${this.keyboardInputComponent.isRight}, ${this.keyboardInputComponent.isShoot}`);
+  }
+}
+
+// code/components/bot_scout_enemy_input_component.ts
+class BotScoutEnemyInputComponent extends InputComponent {
+  gameObject;
+  startX;
+  maxXMovement;
+  constructor(gameObject, maxXMovement) {
+    super();
+    this.gameObject = gameObject;
+    this.startX = gameObject.x;
+    this.maxXMovement = maxXMovement;
+    this._left = true;
+    this._down = true;
+    this._right = false;
+  }
+  update() {
+    if (this.gameObject.x < this.startX - this.maxXMovement) {
+      this._right = true;
+      this._left = false;
+    } else if (this.gameObject.x > this.startX + this.maxXMovement) {
+      this._right = false;
+      this._left = true;
+    }
+  }
+}
+
+// code/objects/scout_enemy.ts
+class ScoutEnemy extends Phaser.GameObjects.Container {
+  enemySprite;
+  engineSprite;
+  inputComponent;
+  verticalMovementComponent;
+  horizontalMovementComponent;
+  constructor(scene, x, y) {
+    super(scene, x, y, []);
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+    const body = this.body;
+    body.setSize(24, 24);
+    body.setOffset(-12, -12);
+    this.enemySprite = scene.add.sprite(0, 0, "scout", 0);
+    this.engineSprite = scene.add.sprite(0, 0, "scout_engine").setFlipY(true);
+    this.engineSprite.play("scout_engine");
+    this.add([this.engineSprite, this.enemySprite]);
+    this.inputComponent = new BotScoutEnemyInputComponent(this, ENEMY_MAX_X_MOVEMENT);
+    this.verticalMovementComponent = new VerticalMovementComponent(this, this.inputComponent, DEFAULT_ENEMY_SPEED, true);
+    this.horizontalMovementComponent = new HorizontalMovementComponent(this, this.inputComponent, DEFAULT_ENEMY_SPEED);
+    scene.events.on(Phaser.Scenes.Events.UPDATE, this.update, this);
+    this.once(Phaser.GameObjects.Events.DESTROY, () => {
+      scene.events.off(Phaser.Scenes.Events.UPDATE, this.update, this);
+    });
+  }
+  update(ts, dt) {
+    this.inputComponent.update();
+    this.verticalMovementComponent.update();
+    this.horizontalMovementComponent.update();
   }
 }
 
@@ -80675,6 +80737,7 @@ class GameScene extends import_phaser.default.Scene {
   preload() {}
   create() {
     const player = new Player(this);
+    const enemy = new ScoutEnemy(this, this.scale.width / 2, 0);
   }
   update() {}
 }
