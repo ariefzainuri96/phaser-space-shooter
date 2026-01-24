@@ -17,6 +17,8 @@ export class Player extends Phaser.GameObjects.Container {
     #lifeComponent: LifeComponent;
     private _weaponComponent: WeaponComponent;
 
+    #isDestroyed = false;
+
     constructor(scene: Phaser.Scene) {
         super(scene, scene.scale.width / 2, scene.scale.height - 32, []);
 
@@ -98,26 +100,70 @@ export class Player extends Phaser.GameObjects.Container {
             return;
         }
 
+        // 2. Modified Death Logic
         if (this.#lifeComponent.isDead) {
-            this.#hide();
-            this.setVisible(true);
-            this.playerSprite.play({
-                key: 'explosion'
-            });                     
-            return;
+            // Only trigger the death sequence ONCE
+            if (!this.#isDestroyed) {
+                this.handleDeathSequence();
+            }
+            // Stop here. Do not update movement or input while dead.
+            return; 
         }
 
+        // Normal game loop
         this.keyboardInputComponent.update();
         this.horizontalMovementComponent.update();
         this.verticalMovementComponent.update();
         this._weaponComponent.update(dt);
     }
 
-    #hide() {
-        this.setActive(false);
-        this.setVisible(false);
+    private handleDeathSequence() {
+        this.#isDestroyed = true;
+        
+        // Stop the ship's movement immediately 
+        const body = this.body as Phaser.Physics.Arcade.Body;
+        body.setVelocity(0, 0);
+        body.setEnable(false);
+
+        // Lock Input
+        this.keyboardInputComponent.inputLocked = true;
+
+        // Hide engine parts (we only want to see the explosion)
         this.engineSprite.setVisible(false);
         this.engineThrusterSprite.setVisible(false);
-        this.keyboardInputComponent.inputLocked = true;
+
+        // Play Explosion on the main sprite
+        this.playerSprite.play('explosion');
+
+        // 4. THE KEY FIX: Wait for animation to finish BEFORE resetting
+        this.playerSprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+            // Optional: Add a small delay (e.g., 1 second) before respawning
+            this.scene.time.delayedCall(100, () => {
+                this.#reset();
+            });
+        });
+    }
+
+    #reset() {
+        // Restore Logic
+        this.lifeComponent.reset();        
+        this.#isDestroyed = false;
+
+        const body = this.body as Phaser.Physics.Arcade.Body;
+        body.setEnable(true);
+
+        // Restore Visuals
+        this.setVisible(true);
+        this.playerSprite.setTexture('ship'); // CRITICAL: Switch texture back from explosion to ship
+        
+        this.engineSprite.setVisible(true);
+        this.engineThrusterSprite.setVisible(true);
+        this.engineThrusterSprite.play('ship_engine_thruster'); // Restart engine anim
+
+        // Unlock Input
+        this.keyboardInputComponent.inputLocked = false;
+                
+        // Optional: Reset Position to spawn point?
+        // this.setPosition(this.scene.scale.width / 2, this.scene.scale.height - 100);
     }
 }

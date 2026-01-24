@@ -99,11 +99,27 @@ export class ScoutEnemy extends Phaser.GameObjects.Container {
         }
 
         if (this.#lifeComponent.isDead) {
-            this.#hide();
-            this.setVisible(true);
-            this.enemySprite.play({
-                key: 'explosion',
-            });
+            // Disable logic loop
+            this.setActive(false);
+
+            // Disable Collision (So player flies through)
+            const body = this.body as Phaser.Physics.Arcade.Body;
+            body.setEnable(false);
+
+            // Hide the ship parts
+            this.engineSprite.setVisible(false);
+
+            // Play Explosion
+            this.enemySprite.play('explosion');
+
+            // Destroy object after animation finishes to free memory
+            this.enemySprite.once(
+                Phaser.Animations.Events.ANIMATION_COMPLETE,
+                () => {
+                    this.destroy();
+                },
+            );
+
             return;
         }
 
@@ -111,11 +127,5 @@ export class ScoutEnemy extends Phaser.GameObjects.Container {
         this.verticalMovementComponent.update();
         this.horizontalMovementComponent.update();
         this._weaponComponent.update(dt);
-    }
-
-    #hide() {
-        this.setActive(false);
-        this.setVisible(false);
-        this.engineSprite.setVisible(false);
     }
 }

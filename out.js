@@ -80539,9 +80539,9 @@ class ColliderComponent {
 // code/constants/number_constant.ts
 var MAX_SPEED = 250;
 var DEFAULT_SPEED = 20;
-var DEFAULT_ENEMY_SPEED = 10;
-var ENEMY_MAX_SPEED = 150;
-var ENEMY_MAX_X_MOVEMENT = 60;
+var DEFAULT_ENEMY_SPEED = 5;
+var ENEMY_MAX_SPEED = 80;
+var ENEMY_MAX_X_MOVEMENT = 40;
 var PLAYER_HEALTH = 4;
 var ENEMY_HEALTH = 2;
 
@@ -80774,6 +80774,7 @@ class Player extends Phaser.GameObjects.Container {
   #colliderComponent;
   #lifeComponent;
   _weaponComponent;
+  #isDestroyed = false;
   constructor(scene) {
     super(scene, scene.scale.width / 2, scene.scale.height - 32, []);
     this.playerSprite = scene.add.sprite(0, 0, "ship");
@@ -80827,11 +80828,9 @@ class Player extends Phaser.GameObjects.Container {
       return;
     }
     if (this.#lifeComponent.isDead) {
-      this.#hide();
-      this.setVisible(true);
-      this.playerSprite.play({
-        key: "explosion"
-      });
+      if (!this.#isDestroyed) {
+        this.handleDeathSequence();
+      }
       return;
     }
     this.keyboardInputComponent.update();
@@ -80839,12 +80838,32 @@ class Player extends Phaser.GameObjects.Container {
     this.verticalMovementComponent.update();
     this._weaponComponent.update(dt);
   }
-  #hide() {
-    this.setActive(false);
-    this.setVisible(false);
+  handleDeathSequence() {
+    this.#isDestroyed = true;
+    const body = this.body;
+    body.setVelocity(0, 0);
+    body.setEnable(false);
+    this.keyboardInputComponent.inputLocked = true;
     this.engineSprite.setVisible(false);
     this.engineThrusterSprite.setVisible(false);
-    this.keyboardInputComponent.inputLocked = true;
+    this.playerSprite.play("explosion");
+    this.playerSprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      this.scene.time.delayedCall(100, () => {
+        this.#reset();
+      });
+    });
+  }
+  #reset() {
+    this.lifeComponent.reset();
+    this.#isDestroyed = false;
+    const body = this.body;
+    body.setEnable(true);
+    this.setVisible(true);
+    this.playerSprite.setTexture("ship");
+    this.engineSprite.setVisible(true);
+    this.engineThrusterSprite.setVisible(true);
+    this.engineThrusterSprite.play("ship_engine_thruster");
+    this.keyboardInputComponent.inputLocked = false;
   }
 }
 
@@ -80931,10 +80950,13 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
       return;
     }
     if (this.#lifeComponent.isDead) {
-      this.#hide();
-      this.setVisible(true);
-      this.enemySprite.play({
-        key: "explosion"
+      this.setActive(false);
+      const body = this.body;
+      body.setEnable(false);
+      this.engineSprite.setVisible(false);
+      this.enemySprite.play("explosion");
+      this.enemySprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+        this.destroy();
       });
       return;
     }
@@ -80942,11 +80964,6 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
     this.verticalMovementComponent.update();
     this.horizontalMovementComponent.update();
     this._weaponComponent.update(dt);
-  }
-  #hide() {
-    this.setActive(false);
-    this.setVisible(false);
-    this.engineSprite.setVisible(false);
   }
 }
 

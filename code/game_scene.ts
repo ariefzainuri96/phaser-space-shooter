@@ -28,29 +28,39 @@ export class GameScene extends Phaser.Scene {
         this.physics.add.overlap(
             this._player,
             enemy,
-            (playerGameObject, enemyGameObject) => {                
-                (playerGameObject as Player).colliderComponent.collideWithEnemyShip();
-                (enemyGameObject as ScoutEnemy).colliderComponent.collideWithEnemyShip();
+            (playerGameObject, enemyGameObject) => {
+                (
+                    playerGameObject as Player
+                ).colliderComponent.collideWithEnemyShip();
+                (
+                    enemyGameObject as ScoutEnemy
+                ).colliderComponent.collideWithEnemyShip();
             },
         );
 
-        this.physics.add.overlap(            
+        this.physics.add.overlap(
             enemy,
             this._player.weaponComponentBulletGroup,
             (enemyGameObject, bulletGameObject) => {
-                console.log(`player bullet collide with enemy body, instance: ${enemyGameObject}`);
-                (enemyGameObject as ScoutEnemy).colliderComponent.collideWithEnemyProjectile();
+                console.log(
+                    `player bullet collide with enemy body, instance: ${enemyGameObject}`,
+                );
+                (
+                    enemyGameObject as ScoutEnemy
+                ).colliderComponent.collideWithEnemyProjectile();
             },
-        )
+        );
 
         this.physics.add.overlap(
             this._player,
             enemy.weaponComponentBulletGroup,
             (player, enemyBullet) => {
-                console.log("player collide with enemy bullet");
-                (player as Player).colliderComponent.collideWithEnemyProjectile();
+                console.log('player collide with enemy bullet');
+                (
+                    player as Player
+                ).colliderComponent.collideWithEnemyProjectile();
             },
-        )
+        );
         // this.spawnNormalEnemy();
         // this.spawnEnemy(true)
         // this.spawnEnemy(false)
