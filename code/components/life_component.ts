@@ -2,7 +2,7 @@ export class LifeComponent {
     #startingLife: number;
     #currentLife: number;
     #isDead: boolean;
-    
+
     constructor(life: number) {
         this.#startingLife = life;
         this.#currentLife = life;

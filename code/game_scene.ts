@@ -28,16 +28,18 @@ export class GameScene extends Phaser.Scene {
         this.physics.add.overlap(
             this._player,
             enemy,
-            (playerGameObject, enemyGameObject) => {
-                console.log("player collide with enemy body");
+            (playerGameObject, enemyGameObject) => {                
+                (playerGameObject as Player).colliderComponent.collideWithEnemyShip();
+                (enemyGameObject as ScoutEnemy).colliderComponent.collideWithEnemyShip();
             },
         );
 
-        this.physics.add.overlap(
-            this._player.weaponComponentBulletGroup,
+        this.physics.add.overlap(            
             enemy,
-            (bulletGameObject, enemyGameObject) => {
-                console.log("player bullet collide with enemy body");
+            this._player.weaponComponentBulletGroup,
+            (enemyGameObject, bulletGameObject) => {
+                console.log(`player bullet collide with enemy body, instance: ${enemyGameObject}`);
+                (enemyGameObject as ScoutEnemy).colliderComponent.collideWithEnemyProjectile();
             },
         )
 
@@ -46,6 +48,7 @@ export class GameScene extends Phaser.Scene {
             enemy.weaponComponentBulletGroup,
             (player, enemyBullet) => {
                 console.log("player collide with enemy bullet");
+                (player as Player).colliderComponent.collideWithEnemyProjectile();
             },
         )
         // this.spawnNormalEnemy();

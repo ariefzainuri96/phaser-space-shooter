@@ -3,19 +3,19 @@ import Phaser from "phaser";
 
 export class KeyboardInputComponent extends InputComponent {
     private cursorKeys?: Phaser.Types.Input.Keyboard.CursorKeys;
-    private inputLocked: boolean = false;
+    #inputLocked: boolean = false;
 
     constructor(scene: Phaser.Scene) {
         super();
         this.cursorKeys = scene.input.keyboard?.createCursorKeys();
     }
 
-    public set setInputLocked(v: boolean) {
-        this.inputLocked = v;
+    set inputLocked(v: boolean) {
+        this.#inputLocked = v;
     }
 
     public update() {
-        if (this.inputLocked) {
+        if (this.#inputLocked) {
             this.reset()
             return
         }

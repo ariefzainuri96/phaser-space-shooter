@@ -1,7 +1,10 @@
+import { ColliderComponent } from './../components/collider-component';
 import { HorizontalMovementComponent } from '../components/horizontal_movement_component';
 import { KeyboardInputComponent } from '../components/keyboard_input_component';
 import { VerticalMovementComponent } from '../components/vertical_movement_component copy';
 import { WeaponComponent } from '../components/weapon_component';
+import { LifeComponent } from '../components/life_component';
+import { PLAYER_HEALTH } from '../constants/number_constant';
 
 export class Player extends Phaser.GameObjects.Container {
     private playerSprite;
@@ -10,6 +13,8 @@ export class Player extends Phaser.GameObjects.Container {
     private keyboardInputComponent;
     private horizontalMovementComponent;
     private verticalMovementComponent;
+    #colliderComponent: ColliderComponent;
+    #lifeComponent: LifeComponent;
     private _weaponComponent: WeaponComponent;
 
     constructor(scene: Phaser.Scene) {
@@ -38,6 +43,8 @@ export class Player extends Phaser.GameObjects.Container {
         body.setCollideWorldBounds(true);
         this.setDepth(2);
 
+        this.#lifeComponent = new LifeComponent(PLAYER_HEALTH);
+        this.#colliderComponent = new ColliderComponent(this.lifeComponent);
         this.keyboardInputComponent = new KeyboardInputComponent(scene);
         this.horizontalMovementComponent = new HorizontalMovementComponent(
             this,
@@ -70,6 +77,14 @@ export class Player extends Phaser.GameObjects.Container {
         });
     }
 
+    get lifeComponent() {
+        return this.#lifeComponent;
+    }
+
+    get colliderComponent() {
+        return this.#colliderComponent;
+    }
+
     get weaponComponentBulletGroup() {
         return this._weaponComponent.bulletGroup;
     }
@@ -79,9 +94,30 @@ export class Player extends Phaser.GameObjects.Container {
     }
 
     public override update(ts: number, dt: number) {
+        if (!this.active) {
+            return;
+        }
+
+        if (this.#lifeComponent.isDead) {
+            this.#hide();
+            this.setVisible(true);
+            this.playerSprite.play({
+                key: 'explosion'
+            });                     
+            return;
+        }
+
         this.keyboardInputComponent.update();
         this.horizontalMovementComponent.update();
         this.verticalMovementComponent.update();
         this._weaponComponent.update(dt);
+    }
+
+    #hide() {
+        this.setActive(false);
+        this.setVisible(false);
+        this.engineSprite.setVisible(false);
+        this.engineThrusterSprite.setVisible(false);
+        this.keyboardInputComponent.inputLocked = true;
     }
 }

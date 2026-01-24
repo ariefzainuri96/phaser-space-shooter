@@ -80516,12 +80516,34 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// code/components/collider-component.ts
+class ColliderComponent {
+  #lifeComponent;
+  constructor(lifeComponent) {
+    this.#lifeComponent = lifeComponent;
+  }
+  collideWithEnemyShip() {
+    if (this.#lifeComponent.isDead) {
+      return;
+    }
+    this.#lifeComponent.die();
+  }
+  collideWithEnemyProjectile() {
+    if (this.#lifeComponent.isDead) {
+      return;
+    }
+    this.#lifeComponent.hit();
+  }
+}
+
 // code/constants/number_constant.ts
 var MAX_SPEED = 250;
 var DEFAULT_SPEED = 20;
 var DEFAULT_ENEMY_SPEED = 10;
 var ENEMY_MAX_SPEED = 150;
 var ENEMY_MAX_X_MOVEMENT = 60;
+var PLAYER_HEALTH = 4;
+var ENEMY_HEALTH = 2;
 
 // code/components/horizontal_movement_component.ts
 class HorizontalMovementComponent {
@@ -80588,16 +80610,16 @@ class InputComponent {
 // code/components/keyboard_input_component.ts
 class KeyboardInputComponent extends InputComponent {
   cursorKeys;
-  inputLocked = false;
+  #inputLocked = false;
   constructor(scene) {
     super();
     this.cursorKeys = scene.input.keyboard?.createCursorKeys();
   }
-  set setInputLocked(v) {
-    this.inputLocked = v;
+  set inputLocked(v) {
+    this.#inputLocked = v;
   }
   update() {
-    if (this.inputLocked) {
+    if (this.#inputLocked) {
       this.reset();
       return;
     }
@@ -80706,6 +80728,41 @@ class WeaponComponent {
   }
 }
 
+// code/components/life_component.ts
+class LifeComponent {
+  #startingLife;
+  #currentLife;
+  #isDead;
+  constructor(life) {
+    this.#startingLife = life;
+    this.#currentLife = life;
+    this.#isDead = false;
+  }
+  get life() {
+    return this.#currentLife;
+  }
+  get isDead() {
+    return this.#isDead;
+  }
+  reset() {
+    this.#currentLife = this.#startingLife;
+    this.#isDead = false;
+  }
+  hit() {
+    if (this.#isDead) {
+      return;
+    }
+    this.#currentLife -= 1;
+    if (this.#currentLife <= 0) {
+      this.#isDead = true;
+    }
+  }
+  die() {
+    this.#currentLife = 0;
+    this.#isDead = true;
+  }
+}
+
 // code/objects/player.ts
 class Player extends Phaser.GameObjects.Container {
   playerSprite;
@@ -80714,6 +80771,8 @@ class Player extends Phaser.GameObjects.Container {
   keyboardInputComponent;
   horizontalMovementComponent;
   verticalMovementComponent;
+  #colliderComponent;
+  #lifeComponent;
   _weaponComponent;
   constructor(scene) {
     super(scene, scene.scale.width / 2, scene.scale.height - 32, []);
@@ -80733,6 +80792,8 @@ class Player extends Phaser.GameObjects.Container {
     body.setOffset(-12, -12);
     body.setCollideWorldBounds(true);
     this.setDepth(2);
+    this.#lifeComponent = new LifeComponent(PLAYER_HEALTH);
+    this.#colliderComponent = new ColliderComponent(this.lifeComponent);
     this.keyboardInputComponent = new KeyboardInputComponent(scene);
     this.horizontalMovementComponent = new HorizontalMovementComponent(this, this.keyboardInputComponent);
     this.verticalMovementComponent = new VerticalMovementComponent(this, this.keyboardInputComponent);
@@ -80749,6 +80810,12 @@ class Player extends Phaser.GameObjects.Container {
       this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.update, this);
     });
   }
+  get lifeComponent() {
+    return this.#lifeComponent;
+  }
+  get colliderComponent() {
+    return this.#colliderComponent;
+  }
   get weaponComponentBulletGroup() {
     return this._weaponComponent.bulletGroup;
   }
@@ -80756,10 +80823,28 @@ class Player extends Phaser.GameObjects.Container {
     return this._weaponComponent;
   }
   update(ts, dt) {
+    if (!this.active) {
+      return;
+    }
+    if (this.#lifeComponent.isDead) {
+      this.#hide();
+      this.setVisible(true);
+      this.playerSprite.play({
+        key: "explosion"
+      });
+      return;
+    }
     this.keyboardInputComponent.update();
     this.horizontalMovementComponent.update();
     this.verticalMovementComponent.update();
     this._weaponComponent.update(dt);
+  }
+  #hide() {
+    this.setActive(false);
+    this.setVisible(false);
+    this.engineSprite.setVisible(false);
+    this.engineThrusterSprite.setVisible(false);
+    this.keyboardInputComponent.inputLocked = true;
   }
 }
 
@@ -80797,6 +80882,8 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
   verticalMovementComponent;
   horizontalMovementComponent;
   _weaponComponent;
+  #colliderComponent;
+  #lifeComponent;
   constructor(scene, x, y) {
     super(scene, x, y, []);
     scene.add.existing(this);
@@ -80808,6 +80895,8 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
     this.engineSprite = scene.add.sprite(0, 0, "scout_engine").setFlipY(true);
     this.engineSprite.play("scout_engine");
     this.add([this.engineSprite, this.enemySprite]);
+    this.#lifeComponent = new LifeComponent(ENEMY_HEALTH);
+    this.#colliderComponent = new ColliderComponent(this.#lifeComponent);
     this.inputComponent = new BotScoutEnemyInputComponent(this, ENEMY_MAX_X_MOVEMENT);
     this.verticalMovementComponent = new VerticalMovementComponent(this, this.inputComponent, DEFAULT_ENEMY_SPEED, true);
     this.horizontalMovementComponent = new HorizontalMovementComponent(this, this.inputComponent, DEFAULT_ENEMY_SPEED);
@@ -80831,11 +80920,33 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
   get weaponComponent() {
     return this._weaponComponent;
   }
+  get lifeComponent() {
+    return this.#lifeComponent;
+  }
+  get colliderComponent() {
+    return this.#colliderComponent;
+  }
   update(ts, dt) {
+    if (!this.active) {
+      return;
+    }
+    if (this.#lifeComponent.isDead) {
+      this.#hide();
+      this.setVisible(true);
+      this.enemySprite.play({
+        key: "explosion"
+      });
+      return;
+    }
     this.inputComponent.update();
     this.verticalMovementComponent.update();
     this.horizontalMovementComponent.update();
     this._weaponComponent.update(dt);
+  }
+  #hide() {
+    this.setActive(false);
+    this.setVisible(false);
+    this.engineSprite.setVisible(false);
   }
 }
 
@@ -80854,13 +80965,16 @@ class GameScene extends import_phaser.default.Scene {
     }
     const enemy = new ScoutEnemy(this, this.scale.width / 2, 0);
     this.physics.add.overlap(this._player, enemy, (playerGameObject, enemyGameObject) => {
-      console.log("player collide with enemy body");
+      playerGameObject.colliderComponent.collideWithEnemyShip();
+      enemyGameObject.colliderComponent.collideWithEnemyShip();
     });
-    this.physics.add.overlap(this._player.weaponComponentBulletGroup, enemy, (bulletGameObject, enemyGameObject) => {
-      console.log("player bullet collide with enemy body");
+    this.physics.add.overlap(enemy, this._player.weaponComponentBulletGroup, (enemyGameObject, bulletGameObject) => {
+      console.log(`player bullet collide with enemy body, instance: ${enemyGameObject}`);
+      enemyGameObject.colliderComponent.collideWithEnemyProjectile();
     });
     this.physics.add.overlap(this._player, enemy.weaponComponentBulletGroup, (player, enemyBullet) => {
       console.log("player collide with enemy bullet");
+      player.colliderComponent.collideWithEnemyProjectile();
     });
   }
   async spawnNormalEnemy() {
