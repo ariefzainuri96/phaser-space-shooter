@@ -80511,6 +80511,11 @@ var import_phaser4 = __toESM(require_phaser(), 1);
 // code/game_scene.ts
 var import_phaser = __toESM(require_phaser(), 1);
 
+// code/utils.ts
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // code/constants/number_constant.ts
 var MAX_SPEED = 250;
 var DEFAULT_SPEED = 20;
@@ -80634,6 +80639,73 @@ class VerticalMovementComponent {
   }
 }
 
+// code/components/weapon_component.ts
+class WeaponComponent {
+  gameObject;
+  inputComponent;
+  bulletConfig;
+  _bulletGroup;
+  enableShootTimer;
+  constructor(gameObject, inputComponent, bulletConfig) {
+    this.gameObject = gameObject;
+    this.inputComponent = inputComponent;
+    this.bulletConfig = bulletConfig;
+    this.enableShootTimer = 0;
+    this._bulletGroup = this.gameObject.scene.physics.add.group({
+      name: `bullets_${Phaser.Math.RND.uuid()}`,
+      enable: false
+    });
+    this._bulletGroup.createMultiple({
+      key: "bullet",
+      frameQuantity: this.bulletConfig.maxBulletCount,
+      active: false,
+      visible: false
+    });
+    this.gameObject.scene.physics.world.on(Phaser.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
+    this.gameObject.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.gameObject.scene.physics.world.off(Phaser.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
+    }, this);
+  }
+  get bulletGroup() {
+    return this._bulletGroup;
+  }
+  update(deltaTime) {
+    this.enableShootTimer -= deltaTime;
+    if (this.enableShootTimer > 0) {
+      return;
+    }
+    if (this.inputComponent.isShoot) {
+      const bullet = this._bulletGroup.getFirstDead();
+      if (bullet == undefined || bullet == null) {
+        return;
+      }
+      const x = this.gameObject.x;
+      const y = this.gameObject.y + this.bulletConfig.yOffset;
+      bullet.enableBody(true, x, y, true, true);
+      if (bullet.body != null) {
+        bullet.body.velocity.y = this.bulletConfig.bulletSpeed;
+      }
+      bullet.setState(this.bulletConfig.lifespan);
+      bullet.play("bullet");
+      bullet.setScale(0.8);
+      bullet.setSize(14, 18);
+      bullet.setFlipY(this.bulletConfig.isFlipY);
+      this.enableShootTimer = this.bulletConfig.shootInterval;
+    }
+  }
+  worldStep(delta) {
+    this._bulletGroup.getChildren().forEach((bullet) => {
+      if (!bullet.active) {
+        return;
+      }
+      bullet.state -= delta;
+      if (bullet.state <= 0) {
+        bullet.disableBody(true, true);
+      }
+    });
+  }
+}
+
 // code/objects/player.ts
 class Player extends Phaser.GameObjects.Container {
   playerSprite;
@@ -80642,13 +80714,18 @@ class Player extends Phaser.GameObjects.Container {
   keyboardInputComponent;
   horizontalMovementComponent;
   verticalMovementComponent;
+  _weaponComponent;
   constructor(scene) {
     super(scene, scene.scale.width / 2, scene.scale.height - 32, []);
     this.playerSprite = scene.add.sprite(0, 0, "ship");
     this.engineSprite = scene.add.sprite(0, 0, "ship_engine");
     this.engineThrusterSprite = scene.add.sprite(0, 0, "ship_engine_thruster");
     this.engineThrusterSprite.play("ship_engine_thruster");
-    this.add([this.engineSprite, this.playerSprite, this.engineThrusterSprite]);
+    this.add([
+      this.engineSprite,
+      this.playerSprite,
+      this.engineThrusterSprite
+    ]);
     this.scene.add.existing(this);
     this.scene.physics.add.existing(this);
     const body = this.body;
@@ -80659,15 +80736,30 @@ class Player extends Phaser.GameObjects.Container {
     this.keyboardInputComponent = new KeyboardInputComponent(scene);
     this.horizontalMovementComponent = new HorizontalMovementComponent(this, this.keyboardInputComponent);
     this.verticalMovementComponent = new VerticalMovementComponent(this, this.keyboardInputComponent);
+    this._weaponComponent = new WeaponComponent(this, this.keyboardInputComponent, {
+      maxBulletCount: 15,
+      yOffset: -20,
+      shootInterval: 200,
+      bulletSpeed: -300,
+      lifespan: 3,
+      isFlipY: false
+    });
     this.scene.events.on(Phaser.Scenes.Events.UPDATE, this.update, this);
     this.once(Phaser.GameObjects.Events.DESTROY, () => {
       this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.update, this);
     });
   }
+  get weaponComponentBulletGroup() {
+    return this._weaponComponent.bulletGroup;
+  }
+  get weaponComponent() {
+    return this._weaponComponent;
+  }
   update(ts, dt) {
     this.keyboardInputComponent.update();
     this.horizontalMovementComponent.update();
     this.verticalMovementComponent.update();
+    this._weaponComponent.update(dt);
   }
 }
 
@@ -80681,6 +80773,7 @@ class BotScoutEnemyInputComponent extends InputComponent {
     this.gameObject = gameObject;
     this.startX = gameObject.x;
     this.maxXMovement = maxXMovement;
+    this._shoot = true;
     this._left = true;
     this._down = true;
     this._right = false;
@@ -80703,6 +80796,7 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
   inputComponent;
   verticalMovementComponent;
   horizontalMovementComponent;
+  _weaponComponent;
   constructor(scene, x, y) {
     super(scene, x, y, []);
     scene.add.existing(this);
@@ -80717,27 +80811,71 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
     this.inputComponent = new BotScoutEnemyInputComponent(this, ENEMY_MAX_X_MOVEMENT);
     this.verticalMovementComponent = new VerticalMovementComponent(this, this.inputComponent, DEFAULT_ENEMY_SPEED, true);
     this.horizontalMovementComponent = new HorizontalMovementComponent(this, this.inputComponent, DEFAULT_ENEMY_SPEED);
+    const bulletConfig = {
+      maxBulletCount: 5,
+      yOffset: 10,
+      shootInterval: 500,
+      bulletSpeed: 300,
+      lifespan: 3,
+      isFlipY: true
+    };
+    this._weaponComponent = new WeaponComponent(this, this.inputComponent, bulletConfig);
     scene.events.on(Phaser.Scenes.Events.UPDATE, this.update, this);
     this.once(Phaser.GameObjects.Events.DESTROY, () => {
       scene.events.off(Phaser.Scenes.Events.UPDATE, this.update, this);
     });
   }
+  get weaponComponentBulletGroup() {
+    return this._weaponComponent.bulletGroup;
+  }
+  get weaponComponent() {
+    return this._weaponComponent;
+  }
   update(ts, dt) {
     this.inputComponent.update();
     this.verticalMovementComponent.update();
     this.horizontalMovementComponent.update();
+    this._weaponComponent.update(dt);
   }
 }
 
 // code/game_scene.ts
 class GameScene extends import_phaser.default.Scene {
+  maxEnemyFromRight = 100;
+  maxEnemyFromLeft = 100;
+  _player;
   constructor() {
     super({ key: "GameScene" });
   }
   preload() {}
   create() {
-    const player = new Player(this);
+    if (!this._player) {
+      this._player = new Player(this);
+    }
     const enemy = new ScoutEnemy(this, this.scale.width / 2, 0);
+    this.physics.add.overlap(this._player, enemy, (playerGameObject, enemyGameObject) => {
+      console.log("player collide with enemy body");
+    });
+    this.physics.add.overlap(this._player.weaponComponentBulletGroup, enemy, (bulletGameObject, enemyGameObject) => {
+      console.log("player bullet collide with enemy body");
+    });
+    this.physics.add.overlap(this._player, enemy.weaponComponentBulletGroup, (player, enemyBullet) => {
+      console.log("player collide with enemy bullet");
+    });
+  }
+  async spawnNormalEnemy() {
+    while (this.maxEnemyFromRight > 0) {
+      new ScoutEnemy(this, this.scale.width / 2, 0);
+      this.maxEnemyFromRight--;
+      await delay(5000);
+    }
+  }
+  async spawnEnemy(fromRight) {
+    while (fromRight ? this.maxEnemyFromRight > 0 : this.maxEnemyFromLeft > 0) {
+      const enemy = new ScoutEnemy(this, this.scale.width / 2 + (fromRight ? -80 : 80), 0);
+      fromRight ? this.maxEnemyFromRight-- : this.maxEnemyFromLeft--;
+      await delay(1000);
+    }
   }
   update() {}
 }

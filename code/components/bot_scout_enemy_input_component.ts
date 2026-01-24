@@ -10,8 +10,9 @@ export class BotScoutEnemyInputComponent extends InputComponent {
 
         this.gameObject = gameObject;
         this.startX = gameObject.x;
-        this.maxXMovement = maxXMovement;
+        this.maxXMovement = maxXMovement;        
 
+        this._shoot = true;
         this._left = true;
         this._down = true;
         this._right = false;
