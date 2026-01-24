@@ -108,9 +108,10 @@ export class Player extends Phaser.GameObjects.Container {
             }
             // Stop here. Do not update movement or input while dead.
             return; 
-        }
+        }        
 
         // Normal game loop
+        this.playerSprite.setFrame((PLAYER_HEALTH - this.#lifeComponent.life).toString(10));
         this.keyboardInputComponent.update();
         this.horizontalMovementComponent.update();
         this.verticalMovementComponent.update();

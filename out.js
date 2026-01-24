@@ -80511,11 +80511,6 @@ var import_phaser4 = __toESM(require_phaser(), 1);
 // code/game_scene.ts
 var import_phaser = __toESM(require_phaser(), 1);
 
-// code/utils.ts
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 // code/components/collider-component.ts
 class ColliderComponent {
   #lifeComponent;
@@ -80633,16 +80628,12 @@ class KeyboardInputComponent extends InputComponent {
 
 // code/components/vertical_movement_component copy.ts
 class VerticalMovementComponent {
-  gameObject;
   inputComponent;
   speed;
   body;
-  forEnemy;
   constructor(gameObject, inputComponent, speed = DEFAULT_SPEED, forEnemy = false) {
-    this.gameObject = gameObject;
     this.inputComponent = inputComponent;
     this.speed = speed;
-    this.forEnemy = forEnemy;
     this.body = gameObject.body;
     this.body.setDamping(true);
     this.body.setDrag(0.01);
@@ -80666,18 +80657,22 @@ class WeaponComponent {
   gameObject;
   inputComponent;
   bulletConfig;
-  _bulletGroup;
+  #bulletGroup;
   enableShootTimer;
-  constructor(gameObject, inputComponent, bulletConfig) {
+  constructor(gameObject, inputComponent, bulletConfig, existingGroup) {
     this.gameObject = gameObject;
     this.inputComponent = inputComponent;
     this.bulletConfig = bulletConfig;
     this.enableShootTimer = 0;
-    this._bulletGroup = this.gameObject.scene.physics.add.group({
-      name: `bullets_${Phaser.Math.RND.uuid()}`,
-      enable: false
-    });
-    this._bulletGroup.createMultiple({
+    if (existingGroup) {
+      this.#bulletGroup = existingGroup;
+    } else {
+      this.#bulletGroup = this.gameObject.scene.physics.add.group({
+        name: `bullets_${Phaser.Math.RND.uuid()}`,
+        enable: false
+      });
+    }
+    this.#bulletGroup.createMultiple({
       key: "bullet",
       frameQuantity: this.bulletConfig.maxBulletCount,
       active: false,
@@ -80689,7 +80684,7 @@ class WeaponComponent {
     }, this);
   }
   get bulletGroup() {
-    return this._bulletGroup;
+    return this.#bulletGroup;
   }
   update(deltaTime) {
     this.enableShootTimer -= deltaTime;
@@ -80697,7 +80692,7 @@ class WeaponComponent {
       return;
     }
     if (this.inputComponent.isShoot) {
-      const bullet = this._bulletGroup.getFirstDead();
+      const bullet = this.#bulletGroup.getFirstDead();
       if (bullet == undefined || bullet == null) {
         return;
       }
@@ -80716,7 +80711,7 @@ class WeaponComponent {
     }
   }
   worldStep(delta) {
-    this._bulletGroup.getChildren().forEach((bullet) => {
+    this.#bulletGroup.getChildren().forEach((bullet) => {
       if (!bullet.active) {
         return;
       }
@@ -80725,6 +80720,9 @@ class WeaponComponent {
         bullet.disableBody(true, true);
       }
     });
+  }
+  destroyBullet(bullet) {
+    bullet.setState(0);
   }
 }
 
@@ -80833,6 +80831,7 @@ class Player extends Phaser.GameObjects.Container {
       }
       return;
     }
+    this.playerSprite.setFrame((PLAYER_HEALTH - this.#lifeComponent.life).toString(10));
     this.keyboardInputComponent.update();
     this.horizontalMovementComponent.update();
     this.verticalMovementComponent.update();
@@ -80900,10 +80899,18 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
   inputComponent;
   verticalMovementComponent;
   horizontalMovementComponent;
-  _weaponComponent;
+  #weaponComponent;
   #colliderComponent;
   #lifeComponent;
-  constructor(scene, x, y) {
+  #bulletConfig = {
+    maxBulletCount: 5,
+    yOffset: 10,
+    shootInterval: 500,
+    bulletSpeed: 300,
+    lifespan: 3,
+    isFlipY: true
+  };
+  constructor(scene, x, y, bulletGroup) {
     super(scene, x, y, []);
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -80919,25 +80926,14 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
     this.inputComponent = new BotScoutEnemyInputComponent(this, ENEMY_MAX_X_MOVEMENT);
     this.verticalMovementComponent = new VerticalMovementComponent(this, this.inputComponent, DEFAULT_ENEMY_SPEED, true);
     this.horizontalMovementComponent = new HorizontalMovementComponent(this, this.inputComponent, DEFAULT_ENEMY_SPEED);
-    const bulletConfig = {
-      maxBulletCount: 5,
-      yOffset: 10,
-      shootInterval: 500,
-      bulletSpeed: 300,
-      lifespan: 3,
-      isFlipY: true
-    };
-    this._weaponComponent = new WeaponComponent(this, this.inputComponent, bulletConfig);
+    this.#weaponComponent = new WeaponComponent(this, this.inputComponent, this.#bulletConfig, bulletGroup);
     scene.events.on(Phaser.Scenes.Events.UPDATE, this.update, this);
     this.once(Phaser.GameObjects.Events.DESTROY, () => {
       scene.events.off(Phaser.Scenes.Events.UPDATE, this.update, this);
     });
   }
-  get weaponComponentBulletGroup() {
-    return this._weaponComponent.bulletGroup;
-  }
   get weaponComponent() {
-    return this._weaponComponent;
+    return this.#weaponComponent;
   }
   get lifeComponent() {
     return this.#lifeComponent;
@@ -80963,7 +80959,43 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
     this.inputComponent.update();
     this.verticalMovementComponent.update();
     this.horizontalMovementComponent.update();
-    this._weaponComponent.update(dt);
+    this.#weaponComponent.update(dt);
+  }
+}
+
+// code/components/enemy_spawner_component.ts
+class EnemySpawnerComponent {
+  #scene;
+  #spawnInterval;
+  #spawnAt;
+  #group;
+  #enemyBulletGroup;
+  constructor(scene, enemyBulletGroup, enemyClass, spawnConfig) {
+    this.#scene = scene;
+    this.#enemyBulletGroup = enemyBulletGroup;
+    this.#group = this.#scene.add.group({
+      name: `${enemyClass.name}_${Phaser.Math.RND.uuid()}`,
+      classType: enemyClass,
+      runChildUpdate: true
+    });
+    this.#spawnInterval = spawnConfig.spawnInterval;
+    this.#spawnAt = spawnConfig.spawnAt;
+    this.#scene.physics.world.on(Phaser.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
+    this.#scene.events.on(Phaser.Scenes.Events.UPDATE, this.update, this);
+    this.#scene.events.once(Phaser.Scenes.Events.DESTROY, () => {
+      this.#scene.events.off(Phaser.Scenes.Events.UPDATE, this.update, this);
+      this.#scene.physics.world.off(Phaser.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
+    });
+  }
+  worldStep(delta) {}
+  update(ts, dt) {
+    this.#spawnAt -= dt;
+    if (this.#spawnAt > 0) {
+      return;
+    }
+    const x = Phaser.Math.RND.between(30, this.#scene.scale.width - 30);
+    const enemy = this.#group.get(x, -20);
+    this.#spawnAt = this.#spawnInterval;
   }
 }
 
@@ -80971,42 +81003,41 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
 class GameScene extends import_phaser.default.Scene {
   maxEnemyFromRight = 100;
   maxEnemyFromLeft = 100;
-  _player;
+  #maxEnemy = 1000;
+  #player;
+  #enemyGroup;
+  #enemyBulletGroup;
   constructor() {
     super({ key: "GameScene" });
   }
   preload() {}
   create() {
-    if (!this._player) {
-      this._player = new Player(this);
+    if (!this.#player) {
+      this.#player = new Player(this);
     }
-    const enemy = new ScoutEnemy(this, this.scale.width / 2, 0);
-    this.physics.add.overlap(this._player, enemy, (playerGameObject, enemyGameObject) => {
-      playerGameObject.colliderComponent.collideWithEnemyShip();
-      enemyGameObject.colliderComponent.collideWithEnemyShip();
+    this.#enemyBulletGroup = this.physics.add.group({});
+    const scoutSpawner = new EnemySpawnerComponent(this, this.#enemyBulletGroup, ScoutEnemy, {
+      spawnInterval: 5000,
+      spawnAt: 1000
     });
-    this.physics.add.overlap(enemy, this._player.weaponComponentBulletGroup, (enemyGameObject, bulletGameObject) => {
-      console.log(`player bullet collide with enemy body, instance: ${enemyGameObject}`);
-      enemyGameObject.colliderComponent.collideWithEnemyProjectile();
+  }
+  setupCollisions() {
+    this.physics.add.overlap(this.#player, this.#enemyGroup, (playerGO, enemyGO) => {
+      const enemy = enemyGO;
+      const player = playerGO;
+      player.colliderComponent.collideWithEnemyShip();
+      enemy.colliderComponent.collideWithEnemyShip();
     });
-    this.physics.add.overlap(this._player, enemy.weaponComponentBulletGroup, (player, enemyBullet) => {
-      console.log("player collide with enemy bullet");
+    this.physics.add.overlap(this.#player, this.#enemyBulletGroup, (playerGO, bulletGO) => {
+      const player = playerGO;
       player.colliderComponent.collideWithEnemyProjectile();
+      bulletGO.disableBody(true, true);
     });
-  }
-  async spawnNormalEnemy() {
-    while (this.maxEnemyFromRight > 0) {
-      new ScoutEnemy(this, this.scale.width / 2, 0);
-      this.maxEnemyFromRight--;
-      await delay(5000);
-    }
-  }
-  async spawnEnemy(fromRight) {
-    while (fromRight ? this.maxEnemyFromRight > 0 : this.maxEnemyFromLeft > 0) {
-      const enemy = new ScoutEnemy(this, this.scale.width / 2 + (fromRight ? -80 : 80), 0);
-      fromRight ? this.maxEnemyFromRight-- : this.maxEnemyFromLeft--;
-      await delay(1000);
-    }
+    this.physics.add.overlap(this.#enemyGroup, this.#player.weaponComponentBulletGroup, (enemyGO, bulletGO) => {
+      const enemy = enemyGO;
+      enemy.colliderComponent.collideWithEnemyProjectile();
+      bulletGO.disableBody(true, true);
+    });
   }
   update() {}
 }

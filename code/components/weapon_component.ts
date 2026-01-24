@@ -1,4 +1,4 @@
-import type { InputComponent } from "./input_component";
+import type { InputComponent } from './input_component';
 
 export type BulletConfig = {
     maxBulletCount: number;
@@ -7,46 +7,65 @@ export type BulletConfig = {
     bulletSpeed: number;
     lifespan: number;
     isFlipY: boolean;
-}
+};
 
 export class WeaponComponent {
     private gameObject: Phaser.GameObjects.Container;
     private inputComponent: InputComponent;
     private bulletConfig: BulletConfig;
-    private _bulletGroup: Phaser.Physics.Arcade.Group;
+    #bulletGroup: Phaser.Physics.Arcade.Group;
     private enableShootTimer: number;
 
-    constructor(gameObject: Phaser.GameObjects.Container, inputComponent: InputComponent, bulletConfig: BulletConfig) {
+    constructor(
+        gameObject: Phaser.GameObjects.Container,
+        inputComponent: InputComponent,
+        bulletConfig: BulletConfig,
+        existingGroup?: Phaser.Physics.Arcade.Group,
+    ) {
         this.gameObject = gameObject;
         this.inputComponent = inputComponent;
         this.bulletConfig = bulletConfig;
 
         this.enableShootTimer = 0;
 
-        this._bulletGroup = this.gameObject.scene.physics.add.group({
-            name: `bullets_${Phaser.Math.RND.uuid()}`,
-            enable: false,
-        });
+        // If an existing group is passed (Shared Pool), use it.
+        // Otherwise, create a new one (Fallback).
+        if (existingGroup) {
+            this.#bulletGroup = existingGroup;
+        } else {
+            this.#bulletGroup = this.gameObject.scene.physics.add.group({
+                name: `bullets_${Phaser.Math.RND.uuid()}`,
+                enable: false,
+            });
+        }
 
-        this._bulletGroup.createMultiple({
+        this.#bulletGroup.createMultiple({
             key: 'bullet',
             frameQuantity: this.bulletConfig.maxBulletCount,
             active: false,
             visible: false,
         });
 
-        this.gameObject.scene.physics.world.on(Phaser.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
+        this.gameObject.scene.physics.world.on(
+            Phaser.Physics.Arcade.Events.WORLD_STEP,
+            this.worldStep,
+            this,
+        );
         this.gameObject.once(
             Phaser.GameObjects.Events.DESTROY,
-            () => {                
-                this.gameObject.scene.physics.world.off(Phaser.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
+            () => {
+                this.gameObject.scene.physics.world.off(
+                    Phaser.Physics.Arcade.Events.WORLD_STEP,
+                    this.worldStep,
+                    this,
+                );
             },
-            this
-        )
+            this,
+        );
     }
 
     get bulletGroup() {
-        return this._bulletGroup;
+        return this.#bulletGroup;
     }
 
     public update(deltaTime: number) {
@@ -57,7 +76,8 @@ export class WeaponComponent {
         }
 
         if (this.inputComponent.isShoot) {
-            const bullet = this._bulletGroup.getFirstDead() as Phaser.Physics.Arcade.Sprite;
+            const bullet =
+                this.#bulletGroup.getFirstDead() as Phaser.Physics.Arcade.Sprite;
 
             if (bullet == undefined || bullet == null) {
                 return;
@@ -67,21 +87,21 @@ export class WeaponComponent {
             const y = this.gameObject.y + this.bulletConfig.yOffset;
 
             bullet.enableBody(true, x, y, true, true);
-            if (bullet.body != null) {                
+            if (bullet.body != null) {
                 bullet.body.velocity.y = this.bulletConfig.bulletSpeed;
             }
             bullet.setState(this.bulletConfig.lifespan);
             bullet.play('bullet');
-            bullet.setScale(0.8)
-            bullet.setSize(14, 18)
+            bullet.setScale(0.8);
+            bullet.setSize(14, 18);
             bullet.setFlipY(this.bulletConfig.isFlipY);
 
             this.enableShootTimer = this.bulletConfig.shootInterval;
         }
     }
 
-    private worldStep(delta: number) {        
-        this._bulletGroup.getChildren().forEach((bullet: any) => {
+    private worldStep(delta: number) {
+        this.#bulletGroup.getChildren().forEach((bullet: any) => {
             if (!bullet.active) {
                 return;
             }
@@ -91,5 +111,9 @@ export class WeaponComponent {
                 bullet.disableBody(true, true);
             }
         });
+    }
+
+    public destroyBullet(bullet: any) {
+        bullet.setState(0);
     }
 }

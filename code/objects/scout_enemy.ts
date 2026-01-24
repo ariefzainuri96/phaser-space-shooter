@@ -19,11 +19,20 @@ export class ScoutEnemy extends Phaser.GameObjects.Container {
     private inputComponent: BotScoutEnemyInputComponent;
     private verticalMovementComponent: VerticalMovementComponent;
     private horizontalMovementComponent: HorizontalMovementComponent;
-    private _weaponComponent: WeaponComponent;
+    #weaponComponent: WeaponComponent;
     #colliderComponent: ColliderComponent;
     #lifeComponent: LifeComponent;
 
-    constructor(scene: Phaser.Scene, x: number, y: number) {
+    #bulletConfig: BulletConfig = {
+        maxBulletCount: 5,
+        yOffset: 10,
+        shootInterval: 500,
+        bulletSpeed: 300,
+        lifespan: 3,
+        isFlipY: true,
+    };
+
+    constructor(scene: Phaser.Scene, x: number, y: number, bulletGroup: Phaser.Physics.Arcade.Group) {
         super(scene, x, y, []);
 
         scene.add.existing(this);
@@ -57,18 +66,12 @@ export class ScoutEnemy extends Phaser.GameObjects.Container {
             this.inputComponent,
             DEFAULT_ENEMY_SPEED,
         );
-        const bulletConfig: BulletConfig = {
-            maxBulletCount: 5,
-            yOffset: 10,
-            shootInterval: 500,
-            bulletSpeed: 300,
-            lifespan: 3,
-            isFlipY: true,
-        };
-        this._weaponComponent = new WeaponComponent(
+
+        this.#weaponComponent = new WeaponComponent(
             this,
             this.inputComponent,
-            bulletConfig,
+            this.#bulletConfig,
+            bulletGroup,
         );
 
         scene.events.on(Phaser.Scenes.Events.UPDATE, this.update, this);
@@ -77,12 +80,8 @@ export class ScoutEnemy extends Phaser.GameObjects.Container {
         });
     }
 
-    get weaponComponentBulletGroup() {
-        return this._weaponComponent.bulletGroup;
-    }
-
     get weaponComponent() {
-        return this._weaponComponent;
+        return this.#weaponComponent;
     }
 
     get lifeComponent() {
@@ -126,6 +125,38 @@ export class ScoutEnemy extends Phaser.GameObjects.Container {
         this.inputComponent.update();
         this.verticalMovementComponent.update();
         this.horizontalMovementComponent.update();
-        this._weaponComponent.update(dt);
+        this.#weaponComponent.update(dt);
     }
+
+    // // 2. New Method: Receive the dependency
+    // public setBulletGroup(group: Phaser.Physics.Arcade.Group) {
+    //     // Initialize weapon component here, now that we have the group
+    //     this.#weaponComponent = new WeaponComponent(
+    //         this,
+    //         this.inputComponent,
+    //         this.#bulletConfig, // You need to store config as a property
+    //         group,
+    //     );
+    // }
+
+    // // 3. New Method: Reset state for pooling
+    // public spawn(x: number, y: number) {
+    //     console.log('enemy spawned');
+    //     this.setActive(true);
+    //     this.setVisible(true);
+    //     this.setPosition(x, y);
+
+    //     // Reset Physics
+    //     const body = this.body as Phaser.Physics.Arcade.Body;
+    //     body.setEnable(true);
+    //     body.setVelocity(0, 0);
+
+    //     // Reset Logic
+    //     this.#lifeComponent.reset(); // Reset HP to full
+    //     this.engineSprite.setVisible(true); // Show engine again
+    //     this.enemySprite.setTexture('scout'); // Reset texture from 'explosion' to 'ship'
+
+    //     // Reset Inputs/Movement
+    //     this.inputComponent.reset(); // If you have state there
+    // }
 }
