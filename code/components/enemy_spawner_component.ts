@@ -26,23 +26,10 @@ export class EnemySpawnerComponent {
             classType: enemyClass,
             runChildUpdate: true,
             createCallback: (enemy: Phaser.GameObjects.GameObject) => {
-                console.log('createCallback', enemy);
-                console.log(`item instance: ${enemy instanceof enemyClass}`);
-
                 if (enemy instanceof ScoutEnemy) {
                     enemy.setBulletGroup(this.#enemyBulletGroup);
                 }
-
-                // const enemy = item as any; // or cast to ScoutEnemy
-                // // We manually give the bullet group since the constructor missed it
             },
-            // createCallback: (item: Phaser.GameObjects.GameObject) => {
-            //     const enemy = item as any; // or cast to ScoutEnemy
-            //     // We manually give the bullet group since the constructor missed it
-            //     if (enemy.setBulletGroup) {
-            //         enemy.setBulletGroup(this.#enemyBulletGroup);
-            //     }
-            // },
         });
 
         this.#spawnInterval = spawnConfig.spawnInterval;

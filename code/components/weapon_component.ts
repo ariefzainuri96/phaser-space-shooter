@@ -37,6 +37,24 @@ export class WeaponComponent {
                 name: `bullets_${Phaser.Math.RND.uuid()}`,
                 enable: false,
             });
+
+            this.gameObject.scene.physics.world.on(
+                Phaser.Physics.Arcade.Events.WORLD_STEP,
+                this.worldStep,
+                this,
+            );
+            
+            this.gameObject.once(
+                Phaser.GameObjects.Events.DESTROY,
+                () => {
+                    this.gameObject.scene.physics.world.off(
+                        Phaser.Physics.Arcade.Events.WORLD_STEP,
+                        this.worldStep,
+                        this,
+                    );
+                },
+                this,
+            );
         }
 
         this.#bulletGroup.createMultiple({
@@ -45,23 +63,6 @@ export class WeaponComponent {
             active: false,
             visible: false,
         });
-
-        this.gameObject.scene.physics.world.on(
-            Phaser.Physics.Arcade.Events.WORLD_STEP,
-            this.worldStep,
-            this,
-        );
-        this.gameObject.once(
-            Phaser.GameObjects.Events.DESTROY,
-            () => {
-                this.gameObject.scene.physics.world.off(
-                    Phaser.Physics.Arcade.Events.WORLD_STEP,
-                    this.worldStep,
-                    this,
-                );
-            },
-            this,
-        );
     }
 
     get bulletGroup() {
@@ -113,7 +114,7 @@ export class WeaponComponent {
         });
     }
 
-    public destroyBullet(bullet: any) {
-        bullet.setState(0);
-    }
+    // public destroyBullet(bullet: any) {
+    //     bullet.setState(0);
+    // }
 }

@@ -80683,6 +80683,10 @@ class WeaponComponent {
         name: `bullets_${Phaser.Math.RND.uuid()}`,
         enable: false
       });
+      this.gameObject.scene.physics.world.on(Phaser.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
+      this.gameObject.once(Phaser.GameObjects.Events.DESTROY, () => {
+        this.gameObject.scene.physics.world.off(Phaser.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
+      }, this);
     }
     this.#bulletGroup.createMultiple({
       key: "bullet",
@@ -80690,10 +80694,6 @@ class WeaponComponent {
       active: false,
       visible: false
     });
-    this.gameObject.scene.physics.world.on(Phaser.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
-    this.gameObject.once(Phaser.GameObjects.Events.DESTROY, () => {
-      this.gameObject.scene.physics.world.off(Phaser.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
-    }, this);
   }
   get bulletGroup() {
     return this.#bulletGroup;
@@ -80732,9 +80732,6 @@ class WeaponComponent {
         bullet.disableBody(true, true);
       }
     });
-  }
-  destroyBullet(bullet) {
-    bullet.setState(0);
   }
 }
 
@@ -80783,7 +80780,7 @@ class Player extends Phaser.GameObjects.Container {
   verticalMovementComponent;
   #colliderComponent;
   #lifeComponent;
-  _weaponComponent;
+  #weaponComponent;
   #isDestroyed = false;
   constructor(scene) {
     super(scene, scene.scale.width / 2, scene.scale.height - 32, []);
@@ -80808,7 +80805,7 @@ class Player extends Phaser.GameObjects.Container {
     this.keyboardInputComponent = new KeyboardInputComponent(scene);
     this.horizontalMovementComponent = new HorizontalMovementComponent(this, this.keyboardInputComponent);
     this.verticalMovementComponent = new VerticalMovementComponent(this, this.keyboardInputComponent);
-    this._weaponComponent = new WeaponComponent(this, this.keyboardInputComponent, {
+    this.#weaponComponent = new WeaponComponent(this, this.keyboardInputComponent, {
       maxBulletCount: 15,
       yOffset: -20,
       shootInterval: 200,
@@ -80828,10 +80825,10 @@ class Player extends Phaser.GameObjects.Container {
     return this.#colliderComponent;
   }
   get weaponComponentBulletGroup() {
-    return this._weaponComponent.bulletGroup;
+    return this.#weaponComponent.bulletGroup;
   }
   get weaponComponent() {
-    return this._weaponComponent;
+    return this.#weaponComponent;
   }
   update(ts, dt) {
     if (!this.active) {
@@ -80847,7 +80844,7 @@ class Player extends Phaser.GameObjects.Container {
     this.keyboardInputComponent.update();
     this.horizontalMovementComponent.update();
     this.verticalMovementComponent.update();
-    this._weaponComponent.update(dt);
+    this.#weaponComponent.update(dt);
   }
   handleDeathSequence() {
     this.#isDestroyed = true;
@@ -80994,8 +80991,6 @@ class EnemySpawnerComponent {
       classType: enemyClass,
       runChildUpdate: true,
       createCallback: (enemy) => {
-        console.log("createCallback", enemy);
-        console.log(`item instance: ${enemy instanceof enemyClass}`);
         if (enemy instanceof ScoutEnemy) {
           enemy.setBulletGroup(this.#enemyBulletGroup);
         }
@@ -81043,7 +81038,7 @@ class GameScene extends import_phaser2.default.Scene {
     }
     this.#enemyBulletGroup = this.physics.add.group({});
     const scoutSpawner = new EnemySpawnerComponent(this, this.#enemyBulletGroup, ScoutEnemy, {
-      spawnInterval: 5000,
+      spawnInterval: 4000,
       spawnAt: 1000
     });
     this.physics.add.overlap(this.#player, scoutSpawner.phaserGroup, (playerGameObject, enemyGameObject) => {
@@ -81059,6 +81054,19 @@ class GameScene extends import_phaser2.default.Scene {
     this.physics.add.overlap(this.#player, this.#enemyBulletGroup, (player, enemyBullet) => {
       player.colliderComponent.collideWithEnemyProjectile();
       enemyBullet.disableBody(true, true);
+    });
+    this.physics.world.on(import_phaser2.default.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
+  }
+  worldStep(delta) {
+    this.#enemyBulletGroup.getChildren().forEach((item) => {
+      const bullet = item;
+      if (!bullet.active)
+        return;
+      const state = bullet.state;
+      bullet.setState(state - delta);
+      if (bullet.state <= 0) {
+        bullet.disableBody(true, true);
+      }
     });
   }
   update() {}

@@ -15,7 +15,7 @@ export class Player extends Phaser.GameObjects.Container {
     private verticalMovementComponent;
     #colliderComponent: ColliderComponent;
     #lifeComponent: LifeComponent;
-    private _weaponComponent: WeaponComponent;
+    #weaponComponent!: WeaponComponent;
 
     #isDestroyed = false;
 
@@ -56,7 +56,7 @@ export class Player extends Phaser.GameObjects.Container {
             this,
             this.keyboardInputComponent,
         );
-        this._weaponComponent = new WeaponComponent(
+        this.#weaponComponent = new WeaponComponent(
             this,
             this.keyboardInputComponent,
             {
@@ -88,11 +88,11 @@ export class Player extends Phaser.GameObjects.Container {
     }
 
     get weaponComponentBulletGroup() {
-        return this._weaponComponent.bulletGroup;
+        return this.#weaponComponent.bulletGroup;
     }
 
     get weaponComponent() {
-        return this._weaponComponent;
+        return this.#weaponComponent;
     }
 
     public override update(ts: number, dt: number) {
@@ -115,7 +115,7 @@ export class Player extends Phaser.GameObjects.Container {
         this.keyboardInputComponent.update();
         this.horizontalMovementComponent.update();
         this.verticalMovementComponent.update();
-        this._weaponComponent.update(dt);
+        this.#weaponComponent.update(dt);
     }
 
     private handleDeathSequence() {

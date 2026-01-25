@@ -42,7 +42,7 @@ export class GameScene extends Phaser.Scene {
             this.#enemyBulletGroup,
             ScoutEnemy,
             {
-                spawnInterval: 5000,
+                spawnInterval: 4000,
                 spawnAt: 1000,
             },
         );
@@ -105,6 +105,42 @@ export class GameScene extends Phaser.Scene {
                 );
             },
         );
+
+        this.physics.world.on(
+            Phaser.Physics.Arcade.Events.WORLD_STEP,
+            this.worldStep,
+            this,
+        );
+
+        // this.gameObject.once(
+        //     Phaser.GameObjects.Events.DESTROY,
+        //     () => {
+        //         this.gameObject.scene.physics.world.off(
+        //             Phaser.Physics.Arcade.Events.WORLD_STEP,
+        //             this.worldStep,
+        //             this,
+        //         );
+        //     },
+        //     this,
+        // );
+    }
+
+    private worldStep(delta: number) {
+        // Loop through the SHARED group
+        this.#enemyBulletGroup.getChildren().forEach((item) => {
+            const bullet = item as Phaser.Physics.Arcade.Sprite;
+
+            if (!bullet.active) return;
+
+            const state = bullet.state as number;
+
+            // Logic moved from WeaponComponent
+            bullet.setState(state - delta); // delta is in seconds (approx 0.016)
+
+            if ((bullet.state as number) <= 0) {
+                bullet.disableBody(true, true);
+            }
+        });
     }
 
     // C. UPDATE: The game loop (runs 60 times per second)
