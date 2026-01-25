@@ -19,7 +19,7 @@ export class ScoutEnemy extends Phaser.GameObjects.Container {
     private inputComponent: BotScoutEnemyInputComponent;
     private verticalMovementComponent: VerticalMovementComponent;
     private horizontalMovementComponent: HorizontalMovementComponent;
-    #weaponComponent: WeaponComponent;
+    #weaponComponent?: WeaponComponent;
     #colliderComponent: ColliderComponent;
     #lifeComponent: LifeComponent;
 
@@ -32,7 +32,7 @@ export class ScoutEnemy extends Phaser.GameObjects.Container {
         isFlipY: true,
     };
 
-    constructor(scene: Phaser.Scene, x: number, y: number, bulletGroup: Phaser.Physics.Arcade.Group) {
+    constructor(scene: Phaser.Scene, x: number, y: number) {
         super(scene, x, y, []);
 
         scene.add.existing(this);
@@ -67,12 +67,11 @@ export class ScoutEnemy extends Phaser.GameObjects.Container {
             DEFAULT_ENEMY_SPEED,
         );
 
-        this.#weaponComponent = new WeaponComponent(
-            this,
-            this.inputComponent,
-            this.#bulletConfig,
-            bulletGroup,
-        );
+        // this.#weaponComponent = new WeaponComponent(
+        //     this,
+        //     this.inputComponent,
+        //     this.#bulletConfig,
+        // );
 
         scene.events.on(Phaser.Scenes.Events.UPDATE, this.update, this);
         this.once(Phaser.GameObjects.Events.DESTROY, () => {
@@ -125,19 +124,21 @@ export class ScoutEnemy extends Phaser.GameObjects.Container {
         this.inputComponent.update();
         this.verticalMovementComponent.update();
         this.horizontalMovementComponent.update();
-        this.#weaponComponent.update(dt);
+        if (this.#weaponComponent) {
+            this.#weaponComponent.update(dt);
+        }
     }
 
-    // // 2. New Method: Receive the dependency
-    // public setBulletGroup(group: Phaser.Physics.Arcade.Group) {
-    //     // Initialize weapon component here, now that we have the group
-    //     this.#weaponComponent = new WeaponComponent(
-    //         this,
-    //         this.inputComponent,
-    //         this.#bulletConfig, // You need to store config as a property
-    //         group,
-    //     );
-    // }
+    // 2. New Method: Receive the dependency
+    public setBulletGroup(group: Phaser.Physics.Arcade.Group) {
+        // Initialize weapon component here, now that we have the group
+        this.#weaponComponent = new WeaponComponent(
+            this,
+            this.inputComponent,
+            this.#bulletConfig, // You need to store config as a property
+            group,
+        );
+    }
 
     // // 3. New Method: Reset state for pooling
     // public spawn(x: number, y: number) {

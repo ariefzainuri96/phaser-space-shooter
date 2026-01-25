@@ -80505,11 +80505,23 @@ var require_phaser = __commonJS((exports, module) => {
   });
 });
 
-// code/game.ts
-var import_phaser4 = __toESM(require_phaser(), 1);
+// code/boot_scene.ts
+var import_phaser = __toESM(require_phaser(), 1);
+
+class BootScene extends import_phaser.default.Scene {
+  constructor() {
+    super({ key: "BootScene" });
+  }
+  preload() {
+    this.load.json("animations_json", "../assets/data/animations.json");
+  }
+  create() {
+    this.scene.start("PreloadScene");
+  }
+}
 
 // code/game_scene.ts
-var import_phaser = __toESM(require_phaser(), 1);
+var import_phaser2 = __toESM(require_phaser(), 1);
 
 // code/components/collider-component.ts
 class ColliderComponent {
@@ -80910,7 +80922,7 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
     lifespan: 3,
     isFlipY: true
   };
-  constructor(scene, x, y, bulletGroup) {
+  constructor(scene, x, y) {
     super(scene, x, y, []);
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -80926,7 +80938,6 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
     this.inputComponent = new BotScoutEnemyInputComponent(this, ENEMY_MAX_X_MOVEMENT);
     this.verticalMovementComponent = new VerticalMovementComponent(this, this.inputComponent, DEFAULT_ENEMY_SPEED, true);
     this.horizontalMovementComponent = new HorizontalMovementComponent(this, this.inputComponent, DEFAULT_ENEMY_SPEED);
-    this.#weaponComponent = new WeaponComponent(this, this.inputComponent, this.#bulletConfig, bulletGroup);
     scene.events.on(Phaser.Scenes.Events.UPDATE, this.update, this);
     this.once(Phaser.GameObjects.Events.DESTROY, () => {
       scene.events.off(Phaser.Scenes.Events.UPDATE, this.update, this);
@@ -80959,7 +80970,12 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
     this.inputComponent.update();
     this.verticalMovementComponent.update();
     this.horizontalMovementComponent.update();
-    this.#weaponComponent.update(dt);
+    if (this.#weaponComponent) {
+      this.#weaponComponent.update(dt);
+    }
+  }
+  setBulletGroup(group) {
+    this.#weaponComponent = new WeaponComponent(this, this.inputComponent, this.#bulletConfig, group);
   }
 }
 
@@ -80976,7 +80992,14 @@ class EnemySpawnerComponent {
     this.#group = this.#scene.add.group({
       name: `${enemyClass.name}_${Phaser.Math.RND.uuid()}`,
       classType: enemyClass,
-      runChildUpdate: true
+      runChildUpdate: true,
+      createCallback: (enemy) => {
+        console.log("createCallback", enemy);
+        console.log(`item instance: ${enemy instanceof enemyClass}`);
+        if (enemy instanceof ScoutEnemy) {
+          enemy.setBulletGroup(this.#enemyBulletGroup);
+        }
+      }
     });
     this.#spawnInterval = spawnConfig.spawnInterval;
     this.#spawnAt = spawnConfig.spawnAt;
@@ -80986,6 +81009,9 @@ class EnemySpawnerComponent {
       this.#scene.events.off(Phaser.Scenes.Events.UPDATE, this.update, this);
       this.#scene.physics.world.off(Phaser.Physics.Arcade.Events.WORLD_STEP, this.worldStep, this);
     });
+  }
+  get phaserGroup() {
+    return this.#group;
   }
   worldStep(delta) {}
   update(ts, dt) {
@@ -81000,7 +81026,7 @@ class EnemySpawnerComponent {
 }
 
 // code/game_scene.ts
-class GameScene extends import_phaser.default.Scene {
+class GameScene extends import_phaser2.default.Scene {
   maxEnemyFromRight = 100;
   maxEnemyFromLeft = 100;
   #maxEnemy = 1000;
@@ -81020,42 +81046,26 @@ class GameScene extends import_phaser.default.Scene {
       spawnInterval: 5000,
       spawnAt: 1000
     });
-  }
-  setupCollisions() {
-    this.physics.add.overlap(this.#player, this.#enemyGroup, (playerGO, enemyGO) => {
-      const enemy = enemyGO;
-      const player = playerGO;
-      player.colliderComponent.collideWithEnemyShip();
-      enemy.colliderComponent.collideWithEnemyShip();
+    this.physics.add.overlap(this.#player, scoutSpawner.phaserGroup, (playerGameObject, enemyGameObject) => {
+      console.log("player collide with enemy spawner grup");
+      playerGameObject.colliderComponent.collideWithEnemyShip();
+      enemyGameObject.colliderComponent.collideWithEnemyShip();
     });
-    this.physics.add.overlap(this.#player, this.#enemyBulletGroup, (playerGO, bulletGO) => {
-      const player = playerGO;
+    this.physics.add.overlap(scoutSpawner.phaserGroup, this.#player.weaponComponentBulletGroup, (enemyGameObject, bulletGameObject) => {
+      console.log(`player bullet collide with enemy body, instance: ${enemyGameObject}`);
+      enemyGameObject.colliderComponent.collideWithEnemyProjectile();
+      bulletGameObject.disableBody(true, true);
+    });
+    this.physics.add.overlap(this.#player, this.#enemyBulletGroup, (player, enemyBullet) => {
       player.colliderComponent.collideWithEnemyProjectile();
-      bulletGO.disableBody(true, true);
-    });
-    this.physics.add.overlap(this.#enemyGroup, this.#player.weaponComponentBulletGroup, (enemyGO, bulletGO) => {
-      const enemy = enemyGO;
-      enemy.colliderComponent.collideWithEnemyProjectile();
-      bulletGO.disableBody(true, true);
+      enemyBullet.disableBody(true, true);
     });
   }
   update() {}
 }
 
-// code/boot_scene.ts
-var import_phaser2 = __toESM(require_phaser(), 1);
-
-class BootScene extends import_phaser2.default.Scene {
-  constructor() {
-    super({ key: "BootScene" });
-  }
-  preload() {
-    this.load.json("animations_json", "../assets/data/animations.json");
-  }
-  create() {
-    this.scene.start("PreloadScene");
-  }
-}
+// code/game.ts
+var import_phaser4 = __toESM(require_phaser(), 1);
 
 // code/preload_scene.ts
 var import_phaser3 = __toESM(require_phaser(), 1);
@@ -81102,7 +81112,7 @@ var config = {
     default: "arcade",
     arcade: {
       gravity: { y: 0, x: 0 },
-      debug: true
+      debug: false
     }
   }
 };

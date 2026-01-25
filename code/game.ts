@@ -1,6 +1,6 @@
-import Phaser from 'phaser';
-import { GameScene } from './game_scene';
 import { BootScene } from './boot_scene';
+import { GameScene } from './game_scene';
+import Phaser from 'phaser';
 import { PreloadScene } from './preload_scene';
 
 // 2. The Configuration Object
@@ -20,7 +20,7 @@ const config: Phaser.Types.Core.GameConfig = {
         default: 'arcade', // Arcade physics is simple and fast
         arcade: {
             gravity: { y: 0, x: 0 },
-            debug: true // Shows hitboxes (turn off for production)
+            debug: false // Shows hitboxes (turn off for production)
         }
     },
 };
