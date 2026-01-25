@@ -80914,7 +80914,7 @@ class ScoutEnemy extends Phaser.GameObjects.Container {
   #bulletConfig = {
     maxBulletCount: 5,
     yOffset: 10,
-    shootInterval: 500,
+    shootInterval: 1000,
     bulletSpeed: 300,
     lifespan: 3,
     isFlipY: true
